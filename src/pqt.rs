@@ -4,6 +4,15 @@ use parquet::arrow::arrow_reader::ParquetRecordBatchReaderBuilder;
 
 use crate::utils::print_rows;
 
+pub fn parquet_view_from_slice(buffer: &[u8], max_rows: usize) -> Result<(), Box<dyn Error>> {
+    let temp_file_path = "temp_view_file.parquet";
+    std::fs::write(temp_file_path, buffer).unwrap();
+    crate::pqt::parquet_view(temp_file_path.to_string(), max_rows)?;
+
+    let _ = std::fs::remove_file(temp_file_path);
+    Ok(())
+}
+
 pub fn parquet_view(path: String, max_rows: usize) -> Result<(), Box<dyn Error>> {
     let file = File::open(&path)?;
     let parquet_reader = ParquetRecordBatchReaderBuilder::try_new(file)?

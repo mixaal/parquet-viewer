@@ -1,31 +1,16 @@
 use rustyline::Editor;
 use rustyline::error::ReadlineError;
 
-use crate::utils;
+use crate::{browser, utils};
 
 pub struct Console {
-    http_client: crate::http::PublicHttpEndpoint,
-    fs_client: crate::fs::LocalFs,
-    endpoint: String,
+    browser: browser::FileBrowser,
 }
 
 impl Console {
     pub fn new(endpoint: &str) -> Result<Self, Box<dyn std::error::Error>> {
-        let http_client = crate::http::PublicHttpEndpoint::new(endpoint.to_owned())?;
-        let fs_client = crate::fs::LocalFs::new(endpoint.to_owned());
-        Ok(Self {
-            http_client,
-            fs_client,
-            endpoint: endpoint.to_owned(),
-        })
-    }
-
-    fn get_provider(&mut self, _path: &str) -> &mut dyn crate::provider::Provider {
-        if self.endpoint.starts_with("http://") || self.endpoint.starts_with("https://") {
-            &mut self.http_client
-        } else {
-            &mut self.fs_client
-        }
+        let browser = browser::FileBrowser::new(endpoint.to_owned())?;
+        Ok(Self { browser })
     }
 
     pub async fn process_console_input(&mut self) {
@@ -53,9 +38,8 @@ impl Console {
                     match args[0] {
                         "ls" => {
                             let path = if args.len() > 1 { args[1] } else { "" };
-                            let provider = self.get_provider(&path);
 
-                            match provider.list(path.to_owned()).await {
+                            match self.browser.list(path.to_owned()).await {
                                 Ok(rows) => {
                                     let colmax = utils::compute_col_max_len(&rows);
                                     utils::print_rows(&rows, &colmax, false);
@@ -63,20 +47,10 @@ impl Console {
                                 Err(e) => println!("Error: {}", e),
                             }
                         }
-                        "set_endpoint" => {
-                            if args.len() > 1 {
-                                self.endpoint = args[1].to_string();
-                                self.http_client.set_endpoint(self.endpoint.clone());
-                                self.fs_client.set_endpoint(self.endpoint.clone());
-                                println!("Changed directory to {:?}", self.endpoint);
-                            } else {
-                                println!("Usage: set_endpoint <directory>");
-                            }
-                        }
+
                         "cd" => {
                             if args.len() > 1 {
-                                let provider = self.get_provider(&args[1]);
-                                if let Err(e) = provider.change_dir(args[1]) {
+                                if let Err(e) = self.browser.change_dir(args[1]) {
                                     println!("Error changing directory: {}", e);
                                 }
                             } else {
@@ -84,15 +58,23 @@ impl Console {
                             }
                         }
                         "pwd" => println!("Current directory: {:?}", {
-                            let provider = self.get_provider("");
-                            provider.get_current_dir()
+                            self.browser.get_current_dir()
                         }),
                         "view" => {
                             if args.len() > 1 {
                                 let path = args[1];
-                                let provider = self.get_provider(&path);
-                                provider
-                                    .view(path.to_owned(), 20)
+                                let max_rows = if args.len() > 2 {
+                                    if let Ok(num) = args[2].parse() {
+                                        num
+                                    } else {
+                                        20
+                                    }
+                                } else {
+                                    20
+                                };
+
+                                self.browser
+                                    .view(path.to_owned(), max_rows)
                                     .await
                                     .unwrap_or_else(|e| {
                                         println!("Error viewing file {}: {}", path, e);
