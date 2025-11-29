@@ -42,17 +42,25 @@ impl PublicHttpEndpoint {
 #[async_trait::async_trait]
 impl Provider for PublicHttpEndpoint {
     // List contents of a URL
-    async fn list_dir(&self, url: &String) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
-        println!("Listing URL: {}", url); // Debug print
+    async fn list_dir(
+        &self,
+        base_url: &String,
+        path: &String,
+    ) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
+        println!("HTTP: list_dir(): Listing URL: {base_url} with glob {path}"); // Debug print
 
-        let response = self.client.get(url).send().await?;
+        let response = self.client.get(base_url).send().await?;
         let body = response.text().await?;
         println!("Response Body: {}", body); // Debug print
+
         let list: ListResponse = serde_json::from_str(&body)?;
         let mut files = vec![];
+        let glob = glob::Pattern::new(path)?;
         for entry in list.objects {
             if let Some(name) = entry.name {
-                files.push(vec![name]);
+                if glob.matches(&name) {
+                    files.push(vec![name]);
+                }
             }
         }
         Ok(files)
@@ -63,10 +71,19 @@ impl Provider for PublicHttpEndpoint {
         url: &String,
         glob: &String,
     ) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
-        println!("Listing URL: {}", url); // Debug print
+        let glob = if glob.is_empty() { "*" } else { glob };
+        println!("HTTP: list_zip(): Listing URL: {url} with {glob}");
 
         let files = crate::zip::zip_list_http(&self.client, &url).await?;
-        Ok(files) // Return empty list as zip_list handles printing
+        let mut filtered = vec![];
+        let glob = glob::Pattern::new(glob)?;
+        for row in files.iter() {
+            let name = &row[0];
+            if glob.matches(name) {
+                filtered.push(vec![name.clone()]);
+            }
+        }
+        Ok(filtered)
     }
 
     async fn get_file(&self, url: &String) -> Result<Vec<FileContent>, Box<dyn Error>> {

@@ -8,12 +8,15 @@ pub struct FileContent {
 #[async_trait::async_trait]
 pub trait Provider {
     // List contents of a path or URL
-    async fn list_dir(&self, path: &String)
-    -> Result<Vec<Vec<String>>, Box<dyn std::error::Error>>;
+    async fn list_dir(
+        &self,
+        cwd: &String,
+        path: &String,
+    ) -> Result<Vec<Vec<String>>, Box<dyn std::error::Error>>;
 
     async fn list_zip(
         &self,
-        path: &String,
+        zip_file: &String,
         glob_match: &String,
     ) -> Result<Vec<Vec<String>>, Box<dyn Error>>;
 

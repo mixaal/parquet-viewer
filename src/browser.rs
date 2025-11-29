@@ -91,11 +91,10 @@ impl FileBrowser {
 
     pub(crate) async fn list(&self, path: String) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
         let provider = self.get_provider();
-        let url = self.get_full_path(&path);
-        if url.ends_with("zip") {
-            provider.list_zip(&url, &path).await
+        if self.endpoint.ends_with("zip") {
+            provider.list_zip(&self.endpoint, &path).await
         } else {
-            provider.list_dir(&url).await
+            provider.list_dir(&self.endpoint, &path).await
         }
     }
 

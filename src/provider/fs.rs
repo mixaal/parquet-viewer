@@ -1,7 +1,7 @@
 use std::error::Error;
 use std::fs::File;
 use std::io::Read;
-use std::{fs, vec};
+use std::vec;
 
 use crate::provider::{FileContent, Provider};
 
@@ -25,14 +25,24 @@ impl Provider for LocalFs {
     // Read the contents of a file
 
     // List files in a directory
-    async fn list_dir(&self, path: &String) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
-        println!("Listing URL: {:?}", path); // Debug print
+    async fn list_dir(
+        &self,
+        cwd: &String,
+        path: &String,
+    ) -> Result<Vec<Vec<String>>, Box<dyn Error>> {
+        println!("Listing {path} from: {cwd}"); // Debug print
 
         let mut files = vec![];
-        for entry in fs::read_dir(path)? {
-            let entry = entry?;
-            let file_name = entry.file_name().into_string().unwrap_or_default();
-            files.push(vec![file_name]);
+        let pattern = format!("{cwd}/{path}");
+        for entry in glob::glob(&pattern)? {
+            if let Ok(path) = entry {
+                let file_name = path
+                    .file_name()
+                    .unwrap_or_default()
+                    .to_string_lossy()
+                    .to_string();
+                files.push(vec![file_name]);
+            }
         }
         return Ok(files);
     }
